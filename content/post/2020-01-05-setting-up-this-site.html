@@ -1,0 +1,49 @@
+---
+title: Setting up this site
+author: CK
+date: '2020-01-05'
+slug: setting-up-this-site
+categories: []
+tags:
+  - digital ocean
+  - nginx
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2020-01-05T01:14:04Z'
+featured: no
+image:
+  caption: ''
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+
+
+
+<div id="motivation" class="section level1">
+<h1>Motivation</h1>
+<p>Hey fam! It’s 2020! I really needed to make some changes to my site (which I made from scratch using bootstrap tutorials) so this post is just a general overview about what went down.</p>
+<p>I was quite dissatisfied with the look the old site had and I wanted to generate content by combining <code>go</code> with <code>R</code> and <code>python</code>. Currently, the static material here is built using <code>blogdown</code> which wraps around <code>hugo</code>. I’ve chosen this route because the templates that are included in <code>hugo</code> seemed quite stylish (compared to my poor attempt at a stylish webste T.T) and I didn’t want to dabble in html and css.</p>
+<p>I had to deal with setting things up in <a href="www.digitalocean.com">digital coean</a>, which involves paying $ 5 dollars per month for this website to be functional and also setting up networking logic so that people are able to view this site without typing up long lines of ip address numbers (instead they can just type <a href="www.pharmacoecon.me">www.pharmacoecon.me</a>)</p>
+</div>
+<div id="signing-up-at-digital-ocean" class="section level1">
+<h1>Signing up at digital ocean</h1>
+<p>Setting up a VPS (vritual private server) at digital ocean is super easy. When I was (only) a student, DO had a promotion where they gave 1 year trial period for students so I signed up back in 2017 (They might not have that deal anymore). If you’re interested, go to the <a href="www.digitalocean.com">site</a> and make a user id and password then click on the create button on the upper right corner and click on droplet. The default operating system is ubuntu 18.04 with starter/standard plan that is $ 40 a month. If you’re like me, someone who’s only interested in small-scale server work, change that to the $ 5 per month plan and you’ll get the cheapest but hassle-free plan. If you’ve used <code>ssh</code> before enter your public ssh key and you will be able to ssh into the droplet. Then click on “Create Droplet” and your server is made in less than 5 minutes!</p>
+<p>Addendum: If you’re one of those cool kids that want to codify this process, try <a href="https://www.terraform.io/">Terraform</a>. DevOps using code makes sense and is something I do sometimes when I want to do complicated simulations that takes long hours and requires many CPU’s. I also have soem <a href="https://github.com/ck2136/terraform_config">code</a> for spinning up droplets and running simulations using <code>R</code> and <code>Docker</code>.</p>
+</div>
+<div id="setting-up-a-domain-name" class="section level1">
+<h1>Setting up a Domain Name</h1>
+<p>Since I wanted people to be able to access this site using <a href="www.pharmacoecon.me">www.pharmacoecon.me</a>, I bought the domain name at <a href="https://www.namecheap.com/">Name Cheap</a>. It won’t be easy to find the name you want, but if you wanted to start a website (without using ip addresses) then you should sign up and search for the domain name you want. For me, it comes out to ~$ 12 a year. I don’t think I get that much traffic but it’s fun for me to maintain my own site and publish things I’ve learned (review and teach!) so its worth it for me. In order for your site domain name (e.g. <a href="www.pharmacoecon.me">www.pharmacoecon.me</a>) to correctly point other users to the appropriate location on the web, you need to purchase a domain name from one of the many DNS providers.</p>
+<p>If you’re interested, check this <a href="https://www.digitalocean.com/community/tutorials/how-to-point-to-digitalocean-nameservers-from-common-domain-registrars">link</a> out. The first time you setup a domain name and point it to digital ocean, you don’t need to go back to the DNS providers. Digital ocean makes it easy for content generators to setup their website easy through their control panel.</p>
+</div>
+<div id="nginx-configuration" class="section level1">
+<h1>Nginx Configuration</h1>
+<p>Nginx is essentially a program that directs traffic, balances the load on a server, and deals with website related issues (in layman’s term). For me, nginx makes it easy for me to create proxies and serve my website to the outside world. Most websites will have <code>nginx</code> or <code>apache</code> installed as their webserver/proxy software. Check <a href="https://www.digitalocean.com/community/tutorials/how-to-create-a-self-signed-ssl-certificate-for-nginx-in-ubuntu-16-04">this</a> link out to configure your server with <code>nginx</code> and <code>SSL</code> (<a href="https://www.digicert.com/ssl/">secure sockets layer</a>). These technologies are used such that users are connecting to your site in a secure (encrypted connection) manner (in fact, once configured with nginx and ssl, the site only allows secure connection).</p>
+<p>For me, I actually wasn’t able to access my site until I set up nginx with SSL. If you are running into access issues, it’s likely you need to properly set up your server with nginx + ssl (i.e. go through this <a href="https://www.digitalocean.com/community/tutorials/how-to-secure-nginx-with-let-s-encrypt-on-ubuntu-18-04">link</a>).</p>
+</div>
+<div id="setting-up-blogdownhugo" class="section level1">
+<h1>Setting up Blogdown/Hugo</h1>
+<p>There are a bunch of tutorials on setting up <code>blogdown</code>. The one that’s easiest is <a href="https://sourcethemes.com/academic/docs/install/">this</a>. Since <code>blogdown</code> is a static site generator, you have to build it out each time you want to serve new content. One could set up <code>make</code> to only generate new material on the site and I might make a new post about that later on but for now I’m going to focus on updating this site so people know what I’m up to.</p>
+<p>Thanks for reading!</p>
+</div>

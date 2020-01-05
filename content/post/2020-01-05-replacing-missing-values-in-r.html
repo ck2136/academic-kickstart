@@ -1,0 +1,225 @@
+---
+title: Replacing missing values in R
+author: Chong Kim
+date: '2020-01-05'
+slug: replacing-missing-values-in-r
+categories: []
+tags:
+  - missing values
+  - R
+  - analysis
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2020-01-05T04:07:43Z'
+featured: no
+image:
+  caption: ''
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+
+
+
+<div id="problem" class="section level1">
+<h1>Problem</h1>
+<p>So I’m a regular visitor of the <code>r/rstats</code> subreddit and recently there was a <a href="https://www.reddit.com/r/rstats/comments/ejwqu0/mean_under_multiple_rowbased_conditions/?st=k50e7ltg&amp;sh=7f88f1d6">post</a> about replacing missing values using a certain logic.</p>
+<p>Specifically here is the problem:</p>
+<p>Below is a dataframe where each row represents a city and the idea is to fill the missing unemployment rate. The OP (original poster) wanted to fill in the <code>NA</code> columns based on the mean value of the unemployment rate of the same <code>State</code> and <code>Size</code>. So let’s start with an example dataframe</p>
+<p>NOTE: You can find the original code <a href="https://www.reddit.com/r/rstats/comments/ejwqu0/mean_under_multiple_rowbased_conditions/?st=k50e7ltg&amp;sh=7f88f1d6">here</a>.</p>
+<p>The reason I’m putting all the code together is to show the different ways <code>R</code> can be used to solve the problem and also assess which route is the fastest.</p>
+<pre class="r"><code>library(dplyr)
+
+unemployment_rate_vals &lt;- c(0.01, 0.17, 0.19, NA, 0.21, 0.14, 0.02, NA, 0.26, 0.27, 
+    0.21, 0.28, 0.23, 0.16, 0.1, NA, 0.23, 0.03, 0.11)
+
+state_vals &lt;- c(&quot;KC&quot;, &quot;WA&quot;, &quot;CA&quot;, &quot;KC&quot;, &quot;WA&quot;, &quot;KC&quot;, &quot;CA&quot;, &quot;CA&quot;, &quot;WA&quot;, &quot;CA&quot;, &quot;KC&quot;, 
+    &quot;CA&quot;, &quot;CA&quot;, &quot;KC&quot;, &quot;CA&quot;, &quot;KC&quot;, &quot;KC&quot;, &quot;CA&quot;, &quot;WA&quot;)
+
+size_vals &lt;- c(&quot;Big&quot;, &quot;Medium&quot;, &quot;Big&quot;, &quot;Big&quot;, &quot;Medium&quot;, &quot;Small&quot;, &quot;Big&quot;, &quot;Medium&quot;, 
+    &quot;Medium&quot;, &quot;Big&quot;, &quot;Small&quot;, &quot;Medium&quot;, &quot;Medium&quot;, &quot;Big&quot;, &quot;Medium&quot;, &quot;Big&quot;, &quot;Big&quot;, 
+    &quot;Big&quot;, &quot;Small&quot;)
+
+df &lt;- tibble(unemployment_rate = unemployment_rate_vals, state = state_vals, size = size_vals)
+
+df</code></pre>
+<pre><code># A tibble: 19 x 3
+   unemployment_rate state size  
+               &lt;dbl&gt; &lt;chr&gt; &lt;chr&gt; 
+ 1              0.01 KC    Big   
+ 2              0.17 WA    Medium
+ 3              0.19 CA    Big   
+ 4             NA    KC    Big   
+ 5              0.21 WA    Medium
+ 6              0.14 KC    Small 
+ 7              0.02 CA    Big   
+ 8             NA    CA    Medium
+ 9              0.26 WA    Medium
+10              0.27 CA    Big   
+11              0.21 KC    Small 
+12              0.28 CA    Medium
+13              0.23 CA    Medium
+14              0.16 KC    Big   
+15              0.1  CA    Medium
+16             NA    KC    Big   
+17              0.23 KC    Big   
+18              0.03 CA    Big   
+19              0.11 WA    Small </code></pre>
+</div>
+<div id="solutions" class="section level1">
+<h1>Solutions</h1>
+<p>There are 3 ways people have coded the solution and I’ll briefly talk about them</p>
+<div id="tidyverse-way" class="section level2">
+<h2>Tidyverse way</h2>
+<p>The tidyverse syntax is the most intuitive for me so I’ll start with it</p>
+<pre class="r"><code>f1 &lt;- function(df, state, size, unemployment_rate) {
+    state &lt;- enquo(state)
+    size &lt;- enquo(size)
+    unemployment_rate &lt;- enquo(unemployment_rate)
+    
+    df %&gt;% group_by(!!state, !!size) %&gt;% mutate(unemployment_rate = ifelse(is.na(!!unemployment_rate), 
+        mean(!!unemployment_rate, na.rm = TRUE), !!unemployment_rate))
+}
+res &lt;- f1(df, state, size, unemployment_rate)
+res</code></pre>
+<pre><code># A tibble: 19 x 3
+# Groups:   state, size [6]
+   unemployment_rate state size  
+               &lt;dbl&gt; &lt;chr&gt; &lt;chr&gt; 
+ 1             0.01  KC    Big   
+ 2             0.17  WA    Medium
+ 3             0.19  CA    Big   
+ 4             0.133 KC    Big   
+ 5             0.21  WA    Medium
+ 6             0.14  KC    Small 
+ 7             0.02  CA    Big   
+ 8             0.203 CA    Medium
+ 9             0.26  WA    Medium
+10             0.27  CA    Big   
+11             0.21  KC    Small 
+12             0.28  CA    Medium
+13             0.23  CA    Medium
+14             0.16  KC    Big   
+15             0.1   CA    Medium
+16             0.133 KC    Big   
+17             0.23  KC    Big   
+18             0.03  CA    Big   
+19             0.11  WA    Small </code></pre>
+<p>There are some <code>rlang</code> based coding going on due to my desire to use less quotes in function arguments (look into <a href="https://cran.r-project.org/web/packages/lazyeval/vignettes/lazyeval.html">NSE</a> if you’re interested!). Basically, the <code>state</code>, <code>size</code>, and <code>unemployment_rate</code> arguments should be unquoted.</p>
+</div>
+<div id="using-plyr" class="section level2">
+<h2>Using <code>plyr</code></h2>
+<p>The <code>plyr</code> syntax isn’t bad but not as intuitive compared to the <code>tidyverse</code> way</p>
+<pre class="r"><code>library(plyr)
+f2 &lt;- function(df, state = &quot;state&quot;, size = &quot;size&quot;) {
+    df &lt;- ddply(df, c(state, size), function(a) {
+        a$unemployment_rate[is.na(a$unemployment_rate)] &lt;- mean(a$unemployment_rate, 
+            na.rm = TRUE)
+        a
+    })
+    df
+}
+res &lt;- f2(df, &quot;state&quot;, &quot;size&quot;)
+res</code></pre>
+<pre><code>   unemployment_rate state   size
+1          0.1900000    CA    Big
+2          0.0200000    CA    Big
+3          0.2700000    CA    Big
+4          0.0300000    CA    Big
+5          0.2033333    CA Medium
+6          0.2800000    CA Medium
+7          0.2300000    CA Medium
+8          0.1000000    CA Medium
+9          0.0100000    KC    Big
+10         0.1333333    KC    Big
+11         0.1600000    KC    Big
+12         0.1333333    KC    Big
+13         0.2300000    KC    Big
+14         0.1400000    KC  Small
+15         0.2100000    KC  Small
+16         0.1700000    WA Medium
+17         0.2100000    WA Medium
+18         0.2600000    WA Medium
+19         0.1100000    WA  Small</code></pre>
+<p>Also, the order of the original row isn’t preserved</p>
+</div>
+<div id="for-loop" class="section level2">
+<h2>For loop</h2>
+<pre class="r"><code>f3 &lt;- function(df) {
+    for (a in unique(df$state)) {
+        for (b in unique(df$size)) {
+            df$unemployment_rate[df$state == a &amp; df$size == b &amp; is.na(df$unemployment_rate)] &lt;- mean(df$unemployment_rate[df$state == 
+                a &amp; df$size == b], na.rm = TRUE)
+        }
+    }
+    df
+}
+res &lt;- f3(df)
+res</code></pre>
+<pre><code># A tibble: 19 x 3
+   unemployment_rate state size  
+               &lt;dbl&gt; &lt;chr&gt; &lt;chr&gt; 
+ 1             0.01  KC    Big   
+ 2             0.17  WA    Medium
+ 3             0.19  CA    Big   
+ 4             0.133 KC    Big   
+ 5             0.21  WA    Medium
+ 6             0.14  KC    Small 
+ 7             0.02  CA    Big   
+ 8             0.203 CA    Medium
+ 9             0.26  WA    Medium
+10             0.27  CA    Big   
+11             0.21  KC    Small 
+12             0.28  CA    Medium
+13             0.23  CA    Medium
+14             0.16  KC    Big   
+15             0.1   CA    Medium
+16             0.133 KC    Big   
+17             0.23  KC    Big   
+18             0.03  CA    Big   
+19             0.11  WA    Small </code></pre>
+<p>The for-loop logic takes the rows where rows where <code>is.na(unemployment_rate) == TRUE</code> are replaced with the <code>mean(..., na.rm=TRUE)</code>. It would be interesting to see how fast each of the codes compute.</p>
+</div>
+</div>
+<div id="benchmark" class="section level1">
+<h1>Benchmark</h1>
+<pre class="r"><code>library(&quot;microbenchmark&quot;)
+microbenchmark(f1(df, state, size, unemployment_rate), f2(df, &quot;state&quot;, &quot;size&quot;), f3(df))</code></pre>
+<pre><code>Unit: microseconds
+                                   expr      min        lq     mean   median
+ f1(df, state, size, unemployment_rate)  703.185  962.4680 1332.058 1109.352
+                f2(df, &quot;state&quot;, &quot;size&quot;) 2015.559 2281.0125 2799.986 2519.288
+                                 f3(df)  193.622  266.9785  343.320  331.054
+        uq       max neval
+ 1327.2450 14821.714   100
+ 3012.6900 10630.501   100
+  402.1475   705.509   100</code></pre>
+</div>
+<div id="increase-n" class="section level1">
+<h1>Increase N</h1>
+<pre class="r"><code>unemployment_rate_vals &lt;- c(0.01, 0.17, 0.19, NA, 0.21, 0.14, 0.02, NA, 0.26, 0.27, 
+    0.21, 0.28, 0.23, 0.16, 0.1, NA, 0.23, 0.03, 0.11)
+
+n = 1000
+unemployment_rate_vals &lt;- sample(c(NA, round(runif(1, 0.01, 0.99), 2)), n, TRUE)
+state_vals &lt;- sample(c(&quot;KC&quot;, &quot;WA&quot;, &quot;CA&quot;), n, replace = TRUE)
+size_vals &lt;- sample(c(&quot;Big&quot;, &quot;Medium&quot;, &quot;Small&quot;), n, replace = TRUE)
+df &lt;- tibble(unemployment_rate = unemployment_rate_vals, state = state_vals, size = size_vals)</code></pre>
+<pre class="r"><code>library(&quot;microbenchmark&quot;)
+microbenchmark(f1(df, state, size, unemployment_rate), f2(df, &quot;state&quot;, &quot;size&quot;), f3(df))</code></pre>
+<pre><code>Unit: microseconds
+                                   expr      min        lq     mean   median
+ f1(df, state, size, unemployment_rate) 1021.047 1301.7395 1583.338 1437.718
+                f2(df, &quot;state&quot;, &quot;size&quot;) 3101.661 3701.4585 4241.186 4020.825
+                                 f3(df)  758.488  905.8595 1067.443 1049.292
+       uq       max neval
+ 1609.385  6949.853   100
+ 4423.761 12289.223   100
+ 1211.130  1502.821   100</code></pre>
+</div>
+<div id="conclusion" class="section level1">
+<h1>Conclusion</h1>
+<p>You’d think that the <code>dplyr</code> way would produce the fastest result but sometimes the grouping under the hood is slower than the nested for loop. For small to medium problems like these, it’s a good idea to use intuitive coding that takes less development time. I’d go with <code>dplyr</code> but if there are instances where short codes like this is used consistently, it might be better to opt for a faster running code. For me, I will think about what’s most important (e.g. production run-time vs. development time) then tailor my analysis accordingly.</p>
+<p>Again, I hope you found this post helpful. Thanks for reading!</p>
+</div>

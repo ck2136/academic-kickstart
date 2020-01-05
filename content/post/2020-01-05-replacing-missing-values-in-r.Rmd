@@ -1,0 +1,167 @@
+---
+title: Replacing missing values in R
+author: Chong Kim
+date: '2020-01-05'
+slug: replacing-missing-values-in-r
+categories: []
+tags:
+  - missing values
+  - R
+  - analysis
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2020-01-05T04:07:43Z'
+featured: no
+image:
+  caption: ''
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+
+```{r, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE
+                      , comment = NA
+                      , warning = FALSE
+                      , error = FALSE
+                      , message = FALSE
+                      , tidy = TRUE)
+```
+
+# Problem
+
+So I'm a regular visitor of the `r/rstats` subreddit and recently there was a [post](https://www.reddit.com/r/rstats/comments/ejwqu0/mean_under_multiple_rowbased_conditions/?st=k50e7ltg&sh=7f88f1d6) about replacing missing values using a certain logic.
+
+Specifically here is the problem:
+
+Below is a dataframe where each row represents a city and the idea is to fill the missing unemployment rate. The OP (original poster) wanted to fill in the `NA` columns based on the mean value of the unemployment rate of the same `State` and `Size`. So let's start with an example dataframe
+
+NOTE: You can find the original code [here](https://www.reddit.com/r/rstats/comments/ejwqu0/mean_under_multiple_rowbased_conditions/?st=k50e7ltg&sh=7f88f1d6).
+
+The reason I'm putting all the code together is to show the different ways `R` can be used to solve the problem and also assess which route is the fastest.
+
+```{r, echo=TRUE}
+library(dplyr)
+
+unemployment_rate_vals <- c(.01, .17, .19, NA, .21, .14, .02, NA, .26,
+                            .27, .21, .28, .23, .16, .1, NA, .23, .03, .11)
+
+state_vals <- c("KC", "WA", "CA", "KC", "WA", "KC", "CA", "CA", "WA",
+                "CA", "KC", "CA", "CA", "KC", "CA", "KC", "KC", "CA", "WA")
+
+size_vals <- c("Big", "Medium", "Big", "Big", "Medium", "Small", "Big", "Medium",
+               "Medium", "Big", "Small", "Medium", "Medium", "Big", "Medium", "Big",
+               "Big", "Big", "Small")
+
+df <- tibble(unemployment_rate = unemployment_rate_vals,
+             state = state_vals,
+             size = size_vals)
+
+df
+```
+
+# Solutions
+
+There are 3 ways people have coded the solution and I'll briefly talk about them
+
+## Tidyverse way
+
+The tidyverse syntax is the most intuitive for me so I'll start with it
+
+```{r, echo=TRUE}
+f1 <- function(df, state, size, unemployment_rate){
+  state <- enquo(state)
+  size <- enquo(size)
+  unemployment_rate <- enquo(unemployment_rate)
+  
+  df %>%
+    group_by(!!state, !!size) %>%
+    mutate(unemployment_rate = ifelse(is.na(!!unemployment_rate),
+                                      mean(!!unemployment_rate, na.rm = TRUE),
+                                      !!unemployment_rate))
+}
+res <- f1(df, state, size, unemployment_rate)
+res
+```
+
+There are some `rlang` based coding going on due to my desire to use less quotes in function arguments (look into [NSE](https://cran.r-project.org/web/packages/lazyeval/vignettes/lazyeval.html) if you're interested!). Basically, the `state`, `size`, and `unemployment_rate` arguments should be unquoted. 
+
+## Using `plyr` 
+
+The `plyr` syntax isn't bad but not as intuitive compared to the `tidyverse` way
+
+```{r, echo=TRUE}
+library (plyr)
+f2 <- function(df, state="state", size="size") {
+  df <- ddply(df, c(state, size), function (a) {
+    a$unemployment_rate[is.na(a$unemployment_rate)] <- mean(a$unemployment_rate, na.rm = TRUE)
+    a
+  })
+  df
+}
+res <- f2(df, "state", "size")
+res
+```
+
+Also, the order of the original row isn't preserved
+
+
+## For loop
+
+```{r, echo=TRUE}
+f3 <- function(df){
+  for(a in unique(df$state)) {
+    for(b in unique (df$size)) {
+      df$unemployment_rate[df$state == a & df$size == b & is.na(df$unemployment_rate)] <- mean(df$unemployment_rate[df$state == a & df$size == b], na.rm = TRUE)
+    }
+  }
+  df
+}
+res <- f3(df)
+res
+```
+
+The for-loop logic takes the rows where rows where `is.na(unemployment_rate) == TRUE` are replaced with the `mean(..., na.rm=TRUE)`. It would be interesting to see how fast each of the codes compute.
+
+# Benchmark
+
+```{r, echo=TRUE}
+library("microbenchmark")
+microbenchmark(
+  f1(df, state, size, unemployment_rate),
+  f2(df, "state", "size"),
+  f3(df)
+)
+```
+
+# Increase N 
+
+```{r, echo=TRUE}
+unemployment_rate_vals <- c(.01, .17, .19, NA, .21, .14, .02, NA, .26,
+                            .27, .21, .28, .23, .16, .1, NA, .23, .03, .11)
+
+n = 1000
+unemployment_rate_vals <- sample(c(NA, round(runif(1, 0.01, 0.99), 2)), n, TRUE)
+state_vals <- sample(c("KC","WA","CA"), n, replace = TRUE)
+size_vals <- sample(c("Big","Medium","Small"), n, replace = TRUE)
+df <- tibble(unemployment_rate = unemployment_rate_vals,
+             state = state_vals,
+             size = size_vals)
+```
+
+```{r, echo=TRUE}
+library("microbenchmark")
+microbenchmark(
+  f1(df, state, size, unemployment_rate),
+  f2(df, "state", "size"),
+  f3(df)
+)
+```
+
+# Conclusion
+
+You'd think that the `dplyr` way would produce the fastest result but sometimes the grouping under the hood is slower than the nested for loop. For small to medium problems like these, it's a good idea to use intuitive coding that takes less development time. I'd go with `dplyr` but if there are instances where short codes like this is used consistently, it might be better to opt for a faster running code. For me, I will think about what's most important (e.g. production run-time vs. development time) then tailor my analysis accordingly.
+
+Again, I hope you found this post helpful. Thanks for reading!
