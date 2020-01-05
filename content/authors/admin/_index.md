@@ -1,6 +1,6 @@
 ---
 # Display name
-name: Nelson Bighetti
+name: Chong H. Kim
 
 # Username (this should match the folder name)
 authors:
@@ -10,32 +10,35 @@ authors:
 superuser: true
 
 # Role/position
-role: Professor of Artificial Intelligence
+role: Health Economics & Outcomes Researcher
 
 # Organizations/Affiliations
 organizations:
-- name: Stanford University
-  url: ""
+- name: Stratevi 
+  url: "http://stratevi.com/"
+- name: University of Colorado Skaggs School of Pharmacy & Pharmaceutical Sciences
+  url: "http://www.ucdenver.edu/academics/colleges/pharmacy/AcademicPrograms/PhDPrograms/PharmaceuticalOutcomesResearch/Pages/PharmaceuticalOutcomesResearch.aspx"
 
 # Short bio (displayed in user profile at end of posts)
-bio: My research interests include distributed robotics, mobile computing and programmable matter.
+bio: My research interests include real-world evidence/observation research, cost-effectiveness analysis, predictive modeling, and spatial statistics. 
 
 interests:
-- Artificial Intelligence
-- Computational Linguistics
-- Information Retrieval
+- Observational research
+- Cost-effectiveness analysis
+- Predictive modeling
+- Spatial statistics
 
 education:
   courses:
-  - course: PhD in Artificial Intelligence
-    institution: Stanford University
-    year: 2012
-  - course: MEng in Artificial Intelligence
-    institution: Massachusetts Institute of Technology
+  - course: PhD in Pharmaceutical Outcomes Research
+    institution: University of Colorado, Anschutz Medical Campus
+    year: 2020
+  - course: MPH in Health Policy & Management 
+    institution: Columnbia University 
+    year: 2014
+  - course: BSc in Biochemsitry & Molecular Biology
+    institution: Michigan State University
     year: 2009
-  - course: BSc in Artificial Intelligence
-    institution: Massachusetts Institute of Technology
-    year: 2008
 
 # Social/Academic Networking
 # For available icons, see: https://sourcethemes.com/academic/docs/page-builder/#icons
@@ -44,16 +47,16 @@ education:
 social:
 - icon: envelope
   icon_pack: fas
-  link: '#contact'  # For a direct email link, use "mailto:test@example.org".
+  link: '#contact'  # For a direct email link, use "mailto:chong@stratevi.com".
 - icon: twitter
   icon_pack: fab
-  link: https://twitter.com/GeorgeCushen
+  link: https://twitter.com/chonggg511
 - icon: google-scholar
   icon_pack: ai
-  link: https://scholar.google.co.uk/citations?user=sIwtMXoAAAAJ
+  link: https://scholar.google.com/citations?user=ksd9-uoAAAAJ&hl=en
 - icon: github
   icon_pack: fab
-  link: https://github.com/gcushen
+  link: https://github.com/ck2136
 # Link to a PDF of your resume/CV from the About widget.
 # To enable, copy your resume/CV to `static/files/cv.pdf` and uncomment the lines below.
 # - icon: cv
@@ -61,7 +64,7 @@ social:
 #   link: files/cv.pdf
 
 # Enter email to display Gravatar (if Gravatar enabled in Config)
-email: ""
+email: "chong@stratevi.com"
 
 # Organizational groups that you belong to (for People widget)
 #   Set this to `[]` or comment out if you are not using People widget.
@@ -70,6 +73,4 @@ user_groups:
 - Visitors
 ---
 
-Nelson Bighetti is a professor of artificial intelligence at the Stanford AI Lab. His research interests include distributed robotics, mobile computing and programmable matter. He leads the Robotic Neurobiology group, which develops self-reconfiguring robots, systems of self-organizing robots, and mobile sensor networks.
-
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed neque elit, tristique placerat feugiat ac, facilisis vitae arcu. Proin eget egestas augue. Praesent ut sem nec arcu pellentesque aliquet. Duis dapibus diam vel metus tempus vulputate.
+Chong H. Kim is a HEOR consultant at Stratevi LLC. His research interests include real-world evidence/observational research, cost-effectiveness analysis, predictive modeling, and spatial statistics. He is an Associate Manager at Stratevi, where he conducts research specifically to determine the value of pharmaceutical interventions. 
