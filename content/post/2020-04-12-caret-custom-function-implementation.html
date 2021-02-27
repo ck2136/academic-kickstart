@@ -1,0 +1,688 @@
+---
+title: '{caret} custom function implementation'
+author: ck
+date: '2020-04-12'
+slug: caret-custom-function-implementation
+categories:
+  - R
+  - predictive modeling
+  - caret
+tags:
+  - analysis
+  - R
+  - predictive modeling
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2020-04-12T00:31:24Z'
+featured: no
+image:
+  caption: ''
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+
+
+
+<div id="problem-optimal-probability-threshold" class="section level1">
+<h1>Problem: Optimal Probability Threshold</h1>
+<p>It’s been a while! I’m writing this post for a couple of reasons.</p>
+<ol style="list-style-type: decimal">
+<li>I don’t want to only be writing my dissertation…</li>
+<li>Someone found me on github and asked me to help them.</li>
+</ol>
+<p>I am happy to be writing this post for the two reasons listed above so let’s jump straight into the problem.</p>
+<p>Recently, a random stranger e-mailed me about a problem they were having at work. It was regarding identification of the optimal probability threshold in classification problems. Essentially, when you fit a logistic regression model to your data, you’re likely interested in obtaining the predicted probabilities (via <code>predict()</code>). The predicted probabilities then allows you to classify the observation if they exceed a certain probability threshold. Most of the time, people don’t really think about this probability threshold. I for one believe the threshold is domain/context specific. So there isn’t going to be a universal threshold that you can hammer onto all problems. So then, how do we find the most optimal probability threshold for the problem you’re working on?</p>
+</div>
+<div id="solution-specify-it-in-your-cross-validation-procedure-and-select-the-optimal-threshold" class="section level1">
+<h1>Solution: Specify it in your cross validation procedure and select the optimal threshold</h1>
+<p>This has been handled in the <a href="">{caret} documentation</a> already, so I won’t go into all the technical details here. I’ll walk through a scenario and hopefully it will help people go through it with ease with their own data.</p>
+<p>Let’s start with the <code>data(Sonar)</code>. People may be familiar with the data set already but I’m just going to show a tidbit. If people are interested in learning more… <code>help(Sonar)</code></p>
+<pre class="r"><code>library(&quot;pacman&quot;)
+p_load(caret, mlbench, knitr)
+data(&quot;Sonar&quot;)</code></pre>
+<p>Let’s split the data into training and test set.</p>
+<pre class="r"><code>inTrain &lt;- createDataPartition(Sonar$Class, p=0.75, list = FALSE)
+training &lt;- Sonar[inTrain,]
+testing &lt;- Sonar[-inTrain,]</code></pre>
+<p>OK. So from here we can use the default <code>train()</code> function to undergo a k-fold CV and extract the performance of a model being trained. Let’s use a simple glm with elastic net and identify the optimal alpha, lambda.</p>
+<pre class="r"><code>tuneGrid &lt;- expand.grid(alpha = 0:1, lambda = seq(0.0001, 1, length = 10))
+
+myControl &lt;- trainControl(
+  method = &quot;cv&quot;, number = 10
+)
+
+glmtrain &lt;- train(
+  Class ~.,
+  training,
+  method=&quot;glmnet&quot;,
+  tuneGrid = tuneGrid, trControl = myControl
+)
+
+glmtrain</code></pre>
+<pre><code>## glmnet 
+## 
+## 157 samples
+##  60 predictor
+##   2 classes: &#39;M&#39;, &#39;R&#39; 
+## 
+## No pre-processing
+## Resampling: Cross-Validated (10 fold) 
+## Summary of sample sizes: 141, 141, 142, 142, 141, 142, ... 
+## Resampling results across tuning parameters:
+## 
+##   alpha  lambda  Accuracy   Kappa    
+##   0      0.0001  0.7764706  0.5446293
+##   0      0.1112  0.8026716  0.6013982
+##   0      0.2223  0.7893382  0.5755607
+##   0      0.3334  0.7826716  0.5627521
+##   0      0.4445  0.7823039  0.5622975
+##   0      0.5556  0.7756373  0.5485573
+##   0      0.6667  0.7560539  0.5077482
+##   0      0.7778  0.7560539  0.5077482
+##   0      0.8889  0.7498039  0.4960175
+##   0      1.0000  0.7498039  0.4939777
+##   1      0.0001  0.7123039  0.4123037
+##   1      0.1112  0.7639706  0.5197876
+##   1      0.2223  0.5350245  0.0000000
+##   1      0.3334  0.5350245  0.0000000
+##   1      0.4445  0.5350245  0.0000000
+##   1      0.5556  0.5350245  0.0000000
+##   1      0.6667  0.5350245  0.0000000
+##   1      0.7778  0.5350245  0.0000000
+##   1      0.8889  0.5350245  0.0000000
+##   1      1.0000  0.5350245  0.0000000
+## 
+## Accuracy was used to select the optimal model using the largest value.
+## The final values used for the model were alpha = 0 and lambda = 0.1112.</code></pre>
+<p>So… we see the alpha and lambda values are chosen. We can also extract the model to</p>
+<pre class="r"><code>pred &lt;- predict(glmtrain, newdata = testing)
+confusionMatrix(testing$Class, pred)</code></pre>
+<pre><code>## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction  M  R
+##          M 17 10
+##          R  3 21
+##                                           
+##                Accuracy : 0.7451          
+##                  95% CI : (0.6037, 0.8567)
+##     No Information Rate : 0.6078          
+##     P-Value [Acc &gt; NIR] : 0.02870         
+##                                           
+##                   Kappa : 0.4966          
+##                                           
+##  Mcnemar&#39;s Test P-Value : 0.09609         
+##                                           
+##             Sensitivity : 0.8500          
+##             Specificity : 0.6774          
+##          Pos Pred Value : 0.6296          
+##          Neg Pred Value : 0.8750          
+##              Prevalence : 0.3922          
+##          Detection Rate : 0.3333          
+##    Detection Prevalence : 0.5294          
+##       Balanced Accuracy : 0.7637          
+##                                           
+##        &#39;Positive&#39; Class : M               
+## </code></pre>
+<p>So this would be a short prediction procedure to obtain the predictions for the test data. One thing that we didn’t discuss above was how the <code>predict()</code> function extracted the classes? Basically, the generic <code>predict()</code> function that works on objects of class <code>train</code> will output the raw classess if <code>type=</code> argument isn’t specified in the function.</p>
+<pre class="r"><code>probs &lt;- predict(glmtrain, newdata = testing, type = &quot;prob&quot;)</code></pre>
+<p>Once we specify the <code>type=&quot;prob&quot;</code>, we get the probabilities for both classes. From there, we could manually specify the predictions as such:</p>
+<pre class="r"><code>preds2 &lt;- factor(ifelse(probs$M &gt;= 0.5, &quot;M&quot;,&quot;R&quot;), levels=c(&quot;M&quot;,&quot;R&quot;))
+confusionMatrix(testing$Class, preds2)</code></pre>
+<pre><code>## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction  M  R
+##          M 17 10
+##          R  3 21
+##                                           
+##                Accuracy : 0.7451          
+##                  95% CI : (0.6037, 0.8567)
+##     No Information Rate : 0.6078          
+##     P-Value [Acc &gt; NIR] : 0.02870         
+##                                           
+##                   Kappa : 0.4966          
+##                                           
+##  Mcnemar&#39;s Test P-Value : 0.09609         
+##                                           
+##             Sensitivity : 0.8500          
+##             Specificity : 0.6774          
+##          Pos Pred Value : 0.6296          
+##          Neg Pred Value : 0.8750          
+##              Prevalence : 0.3922          
+##          Detection Rate : 0.3333          
+##    Detection Prevalence : 0.5294          
+##       Balanced Accuracy : 0.7637          
+##                                           
+##        &#39;Positive&#39; Class : M               
+## </code></pre>
+<p>So that’s how things are done interally with the generic <code>predict()</code> function. Now let’s get to how we would optimize the probability thresholds… we essentially want another column that displays the range of probability thresholds that we would wnat to display the performance values (in this case we’ve just used Accuracy but we can modify that).</p>
+<p>We need to get a bit more closer into the internals of <code>{caret}</code> to specify the probability threshold values. We first need to get information regarding the model being used in <code>train</code>. The function to use is <code>getModelInfo()</code>:</p>
+<pre class="r"><code>thresh_code &lt;- getModelInfo(&quot;glmnet&quot;, regex=FALSE)[[1]]
+str(thresh_code)</code></pre>
+<pre><code>## List of 15
+##  $ label     : chr &quot;glmnet&quot;
+##  $ library   : chr [1:2] &quot;glmnet&quot; &quot;Matrix&quot;
+##  $ type      : chr [1:2] &quot;Regression&quot; &quot;Classification&quot;
+##  $ parameters:&#39;data.frame&#39;:  2 obs. of  3 variables:
+##   ..$ parameter: chr [1:2] &quot;alpha&quot; &quot;lambda&quot;
+##   ..$ class    : chr [1:2] &quot;numeric&quot; &quot;numeric&quot;
+##   ..$ label    : chr [1:2] &quot;Mixing Percentage&quot; &quot;Regularization Parameter&quot;
+##  $ grid      :function (x, y, len = NULL, search = &quot;grid&quot;)  
+##   ..- attr(*, &quot;srcref&quot;)= &#39;srcref&#39; int [1:8] 7 26 27 19 26 19 7 27
+##   .. ..- attr(*, &quot;srcfile&quot;)=Classes &#39;srcfilecopy&#39;, &#39;srcfile&#39; &lt;environment: 0x55bece9300d0&gt; 
+##  $ loop      :function (grid)  
+##   ..- attr(*, &quot;srcref&quot;)= &#39;srcref&#39; int [1:8] 28 26 39 19 26 19 28 39
+##   .. ..- attr(*, &quot;srcfile&quot;)=Classes &#39;srcfilecopy&#39;, &#39;srcfile&#39; &lt;environment: 0x55bece9300d0&gt; 
+##  $ fit       :function (x, y, wts, param, lev, last, classProbs, ...)  
+##   ..- attr(*, &quot;srcref&quot;)= &#39;srcref&#39; int [1:8] 40 25 66 19 25 19 40 66
+##   .. ..- attr(*, &quot;srcfile&quot;)=Classes &#39;srcfilecopy&#39;, &#39;srcfile&#39; &lt;environment: 0x55bece9300d0&gt; 
+##  $ predict   :function (modelFit, newdata, submodels = NULL)  
+##   ..- attr(*, &quot;srcref&quot;)= &#39;srcref&#39; int [1:8] 67 29 88 19 29 19 67 88
+##   .. ..- attr(*, &quot;srcfile&quot;)=Classes &#39;srcfilecopy&#39;, &#39;srcfile&#39; &lt;environment: 0x55bece9300d0&gt; 
+##  $ prob      :function (modelFit, newdata, submodels = NULL)  
+##   ..- attr(*, &quot;srcref&quot;)= &#39;srcref&#39; int [1:8] 89 26 122 19 26 19 89 122
+##   .. ..- attr(*, &quot;srcfile&quot;)=Classes &#39;srcfilecopy&#39;, &#39;srcfile&#39; &lt;environment: 0x55bece9300d0&gt; 
+##  $ predictors:function (x, lambda = NULL, ...)  
+##   ..- attr(*, &quot;srcref&quot;)= &#39;srcref&#39; int [1:8] 123 32 139 19 32 19 123 139
+##   .. ..- attr(*, &quot;srcfile&quot;)=Classes &#39;srcfilecopy&#39;, &#39;srcfile&#39; &lt;environment: 0x55bece9300d0&gt; 
+##  $ varImp    :function (object, lambda = NULL, ...)  
+##   ..- attr(*, &quot;srcref&quot;)= &#39;srcref&#39; int [1:8] 140 28 154 19 28 19 140 154
+##   .. ..- attr(*, &quot;srcfile&quot;)=Classes &#39;srcfilecopy&#39;, &#39;srcfile&#39; &lt;environment: 0x55bece9300d0&gt; 
+##  $ levels    :function (x)  
+##   ..- attr(*, &quot;srcref&quot;)= &#39;srcref&#39; int [1:8] 155 28 155 93 28 93 155 155
+##   .. ..- attr(*, &quot;srcfile&quot;)=Classes &#39;srcfilecopy&#39;, &#39;srcfile&#39; &lt;environment: 0x55bece9300d0&gt; 
+##  $ tags      : chr [1:6] &quot;Generalized Linear Model&quot; &quot;Implicit Feature Selection&quot; &quot;L1 Regularization&quot; &quot;L2 Regularization&quot; ...
+##  $ sort      :function (x)  
+##   ..- attr(*, &quot;srcref&quot;)= &#39;srcref&#39; int [1:8] 159 26 159 66 26 66 159 159
+##   .. ..- attr(*, &quot;srcfile&quot;)=Classes &#39;srcfilecopy&#39;, &#39;srcfile&#39; &lt;environment: 0x55bece9300d0&gt; 
+##  $ trim      :function (x)  
+##   ..- attr(*, &quot;srcref&quot;)= &#39;srcref&#39; int [1:8] 160 26 165 19 26 19 160 165
+##   .. ..- attr(*, &quot;srcfile&quot;)=Classes &#39;srcfilecopy&#39;, &#39;srcfile&#39; &lt;environment: 0x55bece9300d0&gt;</code></pre>
+<p>You see a bunch of things that will be useful. First we need to check that the type of task is <code>Classification</code></p>
+<pre class="r"><code>thresh_code$type</code></pre>
+<pre><code>## [1] &quot;Regression&quot;     &quot;Classification&quot;</code></pre>
+<p>Next we need to check the parameters</p>
+<pre class="r"><code>thresh_code$parameters</code></pre>
+<pre><code>##   parameter   class                    label
+## 1     alpha numeric        Mixing Percentage
+## 2    lambda numeric Regularization Parameter</code></pre>
+<p>Since we want to optimize the probability threshold let’s add that part in here</p>
+<pre class="r"><code>thresh_code$parameters &lt;- rbind(
+  thresh_code$parameters, 
+  data.frame(
+    parameter=&quot;threshold&quot;,
+    class=&quot;numeric&quot;,
+    label=&quot;Probability Cutoff&quot;
+  )
+)
+thresh_code$parameters</code></pre>
+<pre><code>##   parameter   class                    label
+## 1     alpha numeric        Mixing Percentage
+## 2    lambda numeric Regularization Parameter
+## 3 threshold numeric       Probability Cutoff</code></pre>
+<p>Ok since that’s done, now we need to make sure the tuning Grid iterates through the probability threshold values according to how we specify it in <code>train()</code></p>
+<pre class="r"><code>thresh_code$grid &lt;- function(x, y, len=NULL, search=&quot;grid&quot;){
+  if(search ==&quot;grid&quot;) {
+    numLev &lt;- if(is.character(y) | is.factor(y)) length(levels(y)) else NA
+    if(!is.na(numLev)){
+      fam &lt;- ifelse(numLev&gt;2, &quot;multinomial&quot;, &quot;binomial&quot;)
+    } else fam &lt;- &quot;gaussian&quot;
+    init &lt;- glmnet::glmnet(Matrix::as.matrix(x),y,
+                           family=fam,
+                           nlambda=len+2,
+                           alpha=0.5)
+    lambda &lt;- unique(init$lambda)
+    lambda &lt;- lambda[-c(1, length(lambda))]
+    lambda &lt;- lambda[1:min(length(lambda), len)]
+    out &lt;- expand.grid(
+      alpha = seq(0.1, 1, length = len),
+      lambda = lambda,
+      threshold = seq(0.01,0.99, length=len)
+    )
+  } else {
+    out &lt;- data.frame(alpha = runif(len, min=0, 1),
+               lambda = 2*runi(len, min = -10, 3),
+               threshold = runif(1,0,size=len)
+               )
+  }
+  out
+}</code></pre>
+<p>Essentially the tuning grid is set up in a way such that if we don’t specify a tuning grid in the <code>train()</code> function then the function will generate a tuning grid specified as the bottom portion of the <code>thresh_code$grid</code> function.</p>
+<p>Now that we’ve specified the tuning grid, we now need to set up a code that will have each performance calculations be conducted within the folds by each threshold value: A loop.</p>
+<pre class="r"><code>thresh_code$loop &lt;- function(grid){
+  loop &lt;- plyr::ddply(
+    grid, c(&quot;alpha&quot;,&quot;lambda&quot;),
+    function(x) c(threshold = max(x$threshold))
+  )
+  submodels &lt;- vector(mode=&quot;list&quot;, length = nrow(loop))
+  
+  for(i in seq(along = loop$threshold)) {
+    index &lt;- which(
+      grid$alpha == loop$alpha[i] &amp;
+        grid$lambda == loop$lambda[i] 
+    )
+    
+    cuts &lt;- grid[index, &quot;threshold&quot;]
+    submodels[[i]] &lt;- data.frame(threshold = cuts[cuts != loop$threshold[i]])
+  }
+  list(loop = loop, submodels = submodels)
+}</code></pre>
+<p>Ok that was convoluted… You can try to debug the code and check what objects you get as you run through each iteration but what’s being done is, for each value of the threshold, we’re setting up a grid of alpha &amp; lambda values that we’ll cross validate the performance on. Therefore submodels are being built for each threshold value. From those submodels we’re extracting the alpha &amp; lambda performances.</p>
+<p>Now let’s move on to the prediction function. Here we want to set it to getting predicted probabilities not class:</p>
+<pre class="r"><code>thresh_code$predict &lt;- function(modelFit, newdata, submodels = NULL) {
+  if(!is.matrix(newdata)) newdata &lt;- Matrix::as.matrix(newdata)
+  if(length(modelFit$obsLevels) &lt; 2) {
+    class1Prob &lt;- predict(modelFit, newdata, s = modelFit$lambdaOpt)
+  } else {
+    class1Prob &lt;- predict(modelFit, newdata, s = modelFit$lambdaOpt, type = &quot;response&quot;)
+  }
+  if(is.matrix(class1Prob)) class1Prob &lt;- class1Prob[,1]
+  
+  if(modelFit$problemType == &quot;Classification&quot;){
+    if(length(modelFit$obsLevels) == 2){
+      out &lt;- ifelse(class1Prob &gt;= modelFit$tuneValue$threshold,
+                    modelFit$obsLevels[1],
+                    modelFit$obsLevels[2]
+                    )
+    } else {
+      out &lt;- matrix(out, ncol=length(modelFit$obsLevels), byrow=TRUE)
+      out &lt;- modelFit$obsLevels[apply(out, 1, which.max)]
+    }
+  }
+  
+  if(!is.null(submodels)) {
+    if(length(modelFit$obsLevels) &lt; 2) {
+      tmp &lt;- as.list(as.data.frame(predict(modelFit, newdata, s = submodels$lambda),
+                                   stringsAsFactors = TRUE))
+    } else {
+      tmp2 &lt;- out
+      out &lt;- vector(mode = &quot;list&quot;, length=length(submodels$threshold))
+      out[[1]] &lt;- tmp2
+      for(j in seq(along = submodels$threshold)) {
+        if(modelFit$problemType == &quot;Classification&quot;){
+          if(length(modelFit$obsLevels) == 2){
+            out[[j+1]]&lt;- ifelse(class1Prob &gt;= submodels$threshold[[j]],
+                               modelFit$obsLevels[1],
+                               modelFit$obsLevels[2]
+                               )
+          } else {
+            tmp_pred &lt;- matrix(tmp_pred, ncol = length(modelFit$obsLevels), byrow=TRUE)
+            tmp_pred &lt;- matrix(tmp_pred, ncol = length(modelFit$obsLevels), byrow=TRUE)
+          }
+        }
+      }
+    }
+  }
+  out
+}</code></pre>
+<p>That was a mess as well. But the gist is that we’re trying to get predictions for each threshold value for each of the test folds. The list <code>out</code> is essentially capturing the predicted classess according to the threshold values.</p>
+<p>We’re almost there now! The probabilities are always the same but we have to create mulitple versions of the probs to evaluate the data across thresholds</p>
+<pre class="r"><code>thresh_code$prob &lt;- function(modelFit, newdata, submodels = NULL) {
+  out &lt;- as.data.frame(predict(modelFit, as.matrix(newdata), s=modelFit$lambdaOpt, type=&quot;response&quot;))
+  out &lt;- cbind(1-out, out)
+  colnames(out) &lt;- modelFit$obsLevels
+  
+  if(!is.null(submodels)) {
+    tmp &lt;- vector(mode = &quot;list&quot;, length=length(submodels$threshold) + 1)
+    tmp[[1]] &lt;- out
+    for(j in seq(along = submodels$threshold)) {
+      tmp_pred &lt;- predict(modelFit, as.matrix(newdata), s=modelFit$lambdaOpt, type=&quot;response&quot;)
+      tmp_pred &lt;- cbind(1-tmp_pred, tmp_pred)
+      colnames(tmp_pred) &lt;- modelFit$obsLevels
+      tmp_pred &lt;- as.data.frame(tmp_pred)
+      tmp[[j+1]] &lt;- tmp_pred
+    }
+  }
+  tmp
+}</code></pre>
+<p>Alright we’ve basically specified everything except the final performance calculation ( which we could customize as well… later). Let’s just keep our default performance calculation for now and see hwow we do.</p>
+<pre class="r"><code>tuneGridnew &lt;- expand.grid(
+  alpha = 0:1, 
+  lambda = seq(0.0001, 1, length = 5),
+  threshold = seq(0, 1, 0.2)
+  )
+
+myControl &lt;- trainControl(
+  method = &quot;cv&quot;, number = 5,
+  classProbs = TRUE
+)
+
+glmtrain2 &lt;- train(
+  Class ~.,
+  training,
+  method=thresh_code,
+  tuneGrid = tuneGridnew, 
+  trControl = myControl
+)
+
+kable(head(glmtrain2$results))</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="right">alpha</th>
+<th align="right">lambda</th>
+<th align="right">threshold</th>
+<th align="right">Accuracy</th>
+<th align="right">Kappa</th>
+<th align="right">AccuracySD</th>
+<th align="right">KappaSD</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">0</td>
+<td align="right">1e-04</td>
+<td align="right">0.0</td>
+<td align="right">0.5350806</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0136257</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="right">0</td>
+<td align="right">1e-04</td>
+<td align="right">0.2</td>
+<td align="right">0.2739919</td>
+<td align="right">-0.4773996</td>
+<td align="right">0.0767136</td>
+<td align="right">0.1473699</td>
+</tr>
+<tr class="odd">
+<td align="right">0</td>
+<td align="right">1e-04</td>
+<td align="right">0.4</td>
+<td align="right">0.2350806</td>
+<td align="right">-0.5348954</td>
+<td align="right">0.0988042</td>
+<td align="right">0.1982347</td>
+</tr>
+<tr class="even">
+<td align="right">0</td>
+<td align="right">1e-04</td>
+<td align="right">0.6</td>
+<td align="right">0.2096774</td>
+<td align="right">-0.5632851</td>
+<td align="right">0.0672463</td>
+<td align="right">0.1373809</td>
+</tr>
+<tr class="odd">
+<td align="right">0</td>
+<td align="right">1e-04</td>
+<td align="right">0.8</td>
+<td align="right">0.2090726</td>
+<td align="right">-0.5411881</td>
+<td align="right">0.0819749</td>
+<td align="right">0.1707124</td>
+</tr>
+<tr class="even">
+<td align="right">0</td>
+<td align="right">1e-04</td>
+<td align="right">1.0</td>
+<td align="right">0.4649194</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0136257</td>
+<td align="right">0.0000000</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>kable(glmtrain2$bestTune)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th align="right">alpha</th>
+<th align="right">lambda</th>
+<th align="right">threshold</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>25</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0</td>
+</tr>
+</tbody>
+</table>
+<p>Now the CV is iterating throug h the probability threshold!</p>
+</div>
+<div id="specification-of-custom-performance-metrics" class="section level1">
+<h1>Specification of Custom Performance Metrics</h1>
+<p>I’m going to keep this section relatively short and make it as practical as possible. Basically this was dealt with in <a href="https://stackoverflow.com/questions/52691761/additional-metrics-in-caret-ppv-sensitivity-specificity?rq=1">stack</a>. If you want to specify all the nice performance metrics for a classification then use <code>summaryFunction = MySummary</code> otherwise use whatever suits your need. I’m also changing the <code>roc()</code> function here from the <code>{pROC}</code> version to the <code>{ModelMetrics}</code> version here. Note that in the <code>thresh_code$prob</code> portion above, we did a bit of manipulating to get the correct probabilities specified for the folds of the training data to be evaluated:</p>
+<pre class="r"><code>twoClassSummarya &lt;- function (data, lev = NULL, model = NULL) 
+{
+  if (length(lev) &gt; 2) {
+    stop(paste(&quot;Your outcome has&quot;, length(lev), &quot;levels. The twoClassSummary() function isn&#39;t appropriate.&quot;))
+  }
+  library(&quot;pROC&quot;)
+  if (!all(levels(data[, &quot;pred&quot;]) == lev)) {
+    stop(&quot;levels of observed and predicted data do not match&quot;)
+  }
+  
+  # print(table(data$obs))
+  
+  rocAUC &lt;- ModelMetrics::auc(
+    as.numeric(as.character(ifelse(data$obs == lev[1], 1, 0))),
+    data[,lev[1]]
+  )
+  out &lt;- c(rocAUC, sensitivity(data[, &quot;pred&quot;], data[, &quot;obs&quot;], 
+                               lev[1]), specificity(data[, &quot;pred&quot;], data[, &quot;obs&quot;], lev[2]))
+  names(out) &lt;- c(&quot;ROC&quot;, &quot;Sens&quot;, &quot;Spec&quot;)
+  out
+}
+
+MySummary  &lt;- function(data, lev = NULL, model = NULL){
+  a1 &lt;- defaultSummary(data, lev, model)
+  b1 &lt;- twoClassSummary(data, lev, model)
+  c1 &lt;- prSummary(data, lev, model)
+  out &lt;- c(a1, b1, c1)
+  out}</code></pre>
+<pre class="r"><code>myControl &lt;- trainControl(method = &quot;cv&quot;, 
+                     number = 5,
+                     savePredictions = TRUE,
+                     summaryFunction = MySummary,
+                     classProbs = TRUE,
+                     allowParallel = FALSE
+                     )
+
+glmtrain3 &lt;- train(
+  Class ~.,
+  training,
+  method=thresh_code,
+  tuneGrid = tuneGridnew, 
+  trControl = myControl
+)</code></pre>
+<pre><code>## Warning in nominalTrainWorkflow(x = x, y = y, wts = weights, info = trainInfo, :
+## There were missing values in resampled performance measures.</code></pre>
+<pre class="r"><code>kable(head(glmtrain3$results))</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="right">alpha</th>
+<th align="right">lambda</th>
+<th align="right">threshold</th>
+<th align="right">Accuracy</th>
+<th align="right">Kappa</th>
+<th align="right">ROC</th>
+<th align="right">Sens</th>
+<th align="right">Spec</th>
+<th align="right">AUC</th>
+<th align="right">Precision</th>
+<th align="right">Recall</th>
+<th align="right">F</th>
+<th align="right">AccuracySD</th>
+<th align="right">KappaSD</th>
+<th align="right">ROCSD</th>
+<th align="right">SensSD</th>
+<th align="right">SpecSD</th>
+<th align="right">AUCSD</th>
+<th align="right">PrecisionSD</th>
+<th align="right">RecallSD</th>
+<th align="right">FSD</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">0</td>
+<td align="right">1e-04</td>
+<td align="right">0.0</td>
+<td align="right">0.5350806</td>
+<td align="right">0.0000000</td>
+<td align="right">0.8672199</td>
+<td align="right">1.0000000</td>
+<td align="right">0.0000000</td>
+<td align="right">0.8184141</td>
+<td align="right">0.5350806</td>
+<td align="right">1.0000000</td>
+<td align="right">0.6970546</td>
+<td align="right">0.0136257</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0426628</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0417762</td>
+<td align="right">0.0136257</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0115884</td>
+</tr>
+<tr class="even">
+<td align="right">0</td>
+<td align="right">1e-04</td>
+<td align="right">0.2</td>
+<td align="right">0.2743952</td>
+<td align="right">-0.4826478</td>
+<td align="right">0.8672199</td>
+<td align="right">0.4161765</td>
+<td align="right">0.1085714</td>
+<td align="right">0.8184141</td>
+<td align="right">0.3444652</td>
+<td align="right">0.4161765</td>
+<td align="right">0.3755743</td>
+<td align="right">0.0559199</td>
+<td align="right">0.1052449</td>
+<td align="right">0.0426628</td>
+<td align="right">0.1225539</td>
+<td align="right">0.1001926</td>
+<td align="right">0.0417762</td>
+<td align="right">0.0654402</td>
+<td align="right">0.1225539</td>
+<td align="right">0.0883808</td>
+</tr>
+<tr class="odd">
+<td align="right">0</td>
+<td align="right">1e-04</td>
+<td align="right">0.4</td>
+<td align="right">0.2622984</td>
+<td align="right">-0.4841204</td>
+<td align="right">0.8672199</td>
+<td align="right">0.3095588</td>
+<td align="right">0.2066667</td>
+<td align="right">0.8184141</td>
+<td align="right">0.3095760</td>
+<td align="right">0.3095588</td>
+<td align="right">0.3091626</td>
+<td align="right">0.0832810</td>
+<td align="right">0.1668428</td>
+<td align="right">0.0426628</td>
+<td align="right">0.0870167</td>
+<td align="right">0.1087759</td>
+<td align="right">0.0417762</td>
+<td align="right">0.0839530</td>
+<td align="right">0.0870167</td>
+<td align="right">0.0845584</td>
+</tr>
+<tr class="even">
+<td align="right">0</td>
+<td align="right">1e-04</td>
+<td align="right">0.6</td>
+<td align="right">0.1979839</td>
+<td align="right">-0.5906412</td>
+<td align="right">0.8672199</td>
+<td align="right">0.1676471</td>
+<td align="right">0.2333333</td>
+<td align="right">0.8184141</td>
+<td align="right">0.1994048</td>
+<td align="right">0.1676471</td>
+<td align="right">0.1817993</td>
+<td align="right">0.0548845</td>
+<td align="right">0.1089436</td>
+<td align="right">0.0426628</td>
+<td align="right">0.0546299</td>
+<td align="right">0.0778102</td>
+<td align="right">0.0417762</td>
+<td align="right">0.0549589</td>
+<td align="right">0.0546299</td>
+<td align="right">0.0548846</td>
+</tr>
+<tr class="odd">
+<td align="right">0</td>
+<td align="right">1e-04</td>
+<td align="right">0.8</td>
+<td align="right">0.2235887</td>
+<td align="right">-0.5068518</td>
+<td align="right">0.8672199</td>
+<td align="right">0.0352941</td>
+<td align="right">0.4409524</td>
+<td align="right">0.8184141</td>
+<td align="right">0.0687179</td>
+<td align="right">0.0352941</td>
+<td align="right">0.0758991</td>
+<td align="right">0.0735417</td>
+<td align="right">0.1624222</td>
+<td align="right">0.0426628</td>
+<td align="right">0.0322190</td>
+<td align="right">0.1652182</td>
+<td align="right">0.0417762</td>
+<td align="right">0.0708593</td>
+<td align="right">0.0322190</td>
+<td align="right">0.0102673</td>
+</tr>
+<tr class="even">
+<td align="right">0</td>
+<td align="right">1e-04</td>
+<td align="right">1.0</td>
+<td align="right">0.4649194</td>
+<td align="right">0.0000000</td>
+<td align="right">0.8672199</td>
+<td align="right">0.0000000</td>
+<td align="right">1.0000000</td>
+<td align="right">0.8184141</td>
+<td align="right">NaN</td>
+<td align="right">0.0000000</td>
+<td align="right">NaN</td>
+<td align="right">0.0136257</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0426628</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0417762</td>
+<td align="right">NA</td>
+<td align="right">0.0000000</td>
+<td align="right">NA</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>kable(glmtrain2$bestTune)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th align="right">alpha</th>
+<th align="right">lambda</th>
+<th align="right">threshold</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>25</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0</td>
+</tr>
+</tbody>
+</table>
+<p>There you have it! I hope this helped :) This is by no means super easy to implement on the first try so I would suggest taking enough time to debug areas of the code that you don’t understand via inserting <code>print()</code> statments to spit out the objects of interest along the way. Happy coding!</p>
+</div>

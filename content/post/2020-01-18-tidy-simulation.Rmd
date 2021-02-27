@@ -1,0 +1,75 @@
+---
+title: Tidy simulation!
+author: ck
+date: '2020-01-18'
+slug: tidy-simulation
+categories:
+  - R
+  - simulation
+tags:
+  - R
+  - simulation
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2020-01-18T04:25:29Z'
+featured: no
+image:
+  caption: ''
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+
+# Simulations? But... why?
+
+When I was taking classess at University of Colorado Anschutz Medical Campus, I was one of those guys that was strong in programming/coding but had to spend much of my time on the math behind statistics. I stopped taking math after vector calculus during undergrad (which I regret) because I was a Biochem major. I thoroughly enjoyed learning all the tricks but I so wish I had learned about (real) analysis and higher (proof-based) maths when I was younger. I say this because the foundation to having a deeper understanding of statistics is to be comfortable with the underlying math. 
+
+So back to my years I was taking the biostatistics classes in Colorado... Because it took me so long to understand mathematical concepts, I regularly took different routes to understanding concepts in stats. For example, it would've been way more difficult if I didn't go about reading through many books on the proof of the [Central Limit Theorem](https://www.cs.toronto.edu/~yuvalf/CLT.pdf). But what helped me gain an additional layer of insight was to through simulation exercises (such as [this one](http://www.ltcconline.net/greenl/java/Statistics/clt/cltsimulation.html)). 
+
+I learned many of the statistical concepts through really diving deep into the math. But, most of the concepts that stick with me are those that I've played around the most. By writing down proofs, one's intution improves regarding a concept but I like to think another way to improve understanding is to experiment, i.e. simulate. So today's post is a simple post about using simulations as a playful tool to gaining insights and understanding real-world problems.
+
+I actually stumbled upon a post in [r-blooger](https://www.r-bloggers.com/fellers-coin-tossing-puzzle-tidy-simulation-in-r/) that talks about `tidysimulations`. Essentially, it's just a play on simulations using `{tidyverse}` packages. 
+
+# Problem
+
+The post above wanted to know how many throws on average it takes to get 2 consecutive heads. I am going to take that one step further and find out how many throws on average it takes to get 3 consecutive heads (HHH). Additionally, I want to know how many thorws it takes to get HHT, HTT, and HTH.
+
+```{r}
+library("tidyverse")
+set.seed(5)
+res <- crossing(trial = 1:2000,
+         flip = 1:200)  %>%
+  mutate(heads = rbinom(n(), 1, .5))  %>%
+  group_by(trial) %>% 
+  mutate(
+    next_flip = lead(heads,1),
+    next2_flip = lead(heads,2),
+    hhh = heads & next_flip & next2_flip,
+    hht = heads & next_flip & !next2_flip,
+    htt = heads & !next_flip &  !next2_flip,
+    hth = heads & !next_flip & next2_flip
+  ) %>% 
+  summarise(
+    first_hhh = which(hhh)[1] + 1,
+    first_hht = which(hht)[1] + 1,
+    first_htt = which(htt)[1] + 1,
+    first_hth = which(hth)[1] + 1
+  ) %>%
+  summarise(
+    first_hhh = mean(first_hhh),
+    first_hht = mean(first_hht),
+    first_htt = mean(first_htt),
+    first_hth = mean(first_hth)
+  )
+
+res
+```
+
+The above indicates that it takes  `r floor(res$first_hhh)` throws to get HHH, `r floor(res$first_hht)` throws to get HHT, `r floor(res$first_htt)` throws to get HTT, and `r floor(res$first_hth)` throws to get HTH. 
+
+The above could be a super useless simulation, I know. But if you think about complex simulations that statisticians perform, it's really building on simple simulation scenarios like the above. Understanding risk of disease or estimating cost of surgery are all based on principles of probability/likelhood. 
+
+I haven't gone into any math in my posts so far because I haven't really had much time to think through a worthwhile topic (and it takes me super long to really think through even the simplest of concepts). I think I may write a post about probability inverse transforms which also invovles simulation. 
+
+Again, thank you for reading my post! I hope you find this post intriguing enough to explore more simulations!

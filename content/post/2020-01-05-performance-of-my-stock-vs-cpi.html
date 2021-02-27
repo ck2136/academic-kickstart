@@ -1,0 +1,112 @@
+---
+title: Performance of my stock vs. cpi
+author: ck
+date: '2020-01-05'
+slug: performance-of-my-stock-vs-cpi
+categories:
+  - stock analysis
+tags:
+  - analysis
+  - R
+  - quantmod
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2020-01-05T17:18:50Z'
+featured: no
+image:
+  caption: ''
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+
+
+
+<div id="intro" class="section level1">
+<h1>Intro</h1>
+<p>As a new years resolution, I made a promise to myself to be more conscious about the investments that I’m making. Of the few that I have, I’ve decided to look into the historical performance of one of the funds that I have. I want to compare the stock price increase over time with the overall consumer price for products in the U.S. (using the <a href="https://www.bls.gov/cpi/data.htm">CPI-U</a>).</p>
+</div>
+<div id="using-quantmod-to-see-performance" class="section level1">
+<h1>Using <code>quantmod</code> to see performance</h1>
+<p><code>quantmod</code> is an R package that makes it easy for users to track their stock. I’m going to specifically look into <code>VTSAX</code> which is an index fund managed by vanguard.</p>
+<pre class="r"><code>library(&quot;pacman&quot;)
+p_load(quantmod, blscrapeR, purrr)</code></pre>
+<pre><code>## Installing package into &#39;/home/ck1/R/x86_64-pc-linux-gnu-library/3.6&#39;
+## (as &#39;lib&#39; is unspecified)</code></pre>
+<pre><code>## also installing the dependencies &#39;xts&#39;, &#39;zoo&#39;, &#39;TTR&#39;</code></pre>
+<pre><code>## 
+## quantmod installed</code></pre>
+<pre><code>## Installing package into &#39;/home/ck1/R/x86_64-pc-linux-gnu-library/3.6&#39;
+## (as &#39;lib&#39; is unspecified)</code></pre>
+<pre><code>## 
+## blscrapeR installed</code></pre>
+<pre class="r"><code>getSymbols(&quot;VTSAX&quot;)</code></pre>
+<pre><code>## &#39;getSymbols&#39; currently uses auto.assign=TRUE by default, but will
+## use auto.assign=FALSE in 0.5-0. You will still be able to use
+## &#39;loadSymbols&#39; to automatically load data. getOption(&quot;getSymbols.env&quot;)
+## and getOption(&quot;getSymbols.auto.assign&quot;) will still be checked for
+## alternate defaults.
+## 
+## This message is shown once per session and may be disabled by setting 
+## options(&quot;getSymbols.warning4.0&quot;=FALSE). See ?getSymbols for details.</code></pre>
+<pre><code>## [1] &quot;VTSAX&quot;</code></pre>
+<pre class="r"><code>chartSeries(VTSAX, subset=&quot;last 11 years&quot;)</code></pre>
+<p><img src="/post/2020-01-05-performance-of-my-stock-vs-cpi_files/figure-html/unnamed-chunk-1-1.png" width="672" /></p>
+<pre class="r"><code>addBBands()</code></pre>
+<p><img src="/post/2020-01-05-performance-of-my-stock-vs-cpi_files/figure-html/unnamed-chunk-1-2.png" width="672" /></p>
+<pre class="r"><code>addMACD()</code></pre>
+<p><img src="/post/2020-01-05-performance-of-my-stock-vs-cpi_files/figure-html/unnamed-chunk-1-3.png" width="672" /></p>
+<p>The chart shows the stock price from 2010 to 2020. I’m happy to see that the overall stock is increasing over time (albeit some dips here and there). There are many more features to the <code>quantmod</code> package that allows users to calculate the performance of their stocks (i.e. other measures of trend, volatility, momentum, and volume). I don’t want to complicate this post so I won’t go into the details but feel free to check them out <a href="https://www.r-bloggers.com/stock-analysis-using-r/">here</a>.</p>
+</div>
+<div id="using-blscraper-to-access-the-bls-cpi-api" class="section level1">
+<h1>Using <code>blscrapeR</code> to access the BLS CPI API</h1>
+<p>We’re going to access the Consumer Price Index All Urban Consumers (CPI-U) using the <code>blscrapeR</code> package (data is based on the Bureau of Labor Statistics (BLS) <a href="https://www.bls.gov/cpi/data.htm">website</a>).</p>
+<pre class="r"><code>cpidf &lt;- bls_api(&quot;CUSR0000SA0&quot;, startyear = 2010, endyear = 2019)</code></pre>
+<pre><code>## REQUEST_SUCCEEDED</code></pre>
+<pre class="r"><code>head(cpidf)</code></pre>
+<pre><code>## # A tibble: 6 x 7
+##    year period periodName latest value footnotes seriesID   
+##   &lt;dbl&gt; &lt;chr&gt;  &lt;chr&gt;      &lt;chr&gt;  &lt;dbl&gt; &lt;chr&gt;     &lt;chr&gt;      
+## 1  2019 M11    November   true    258. &quot;&quot;        CUSR0000SA0
+## 2  2019 M10    October    &lt;NA&gt;    257. &quot;&quot;        CUSR0000SA0
+## 3  2019 M09    September  &lt;NA&gt;    256. &quot;&quot;        CUSR0000SA0
+## 4  2019 M08    August     &lt;NA&gt;    256. &quot;&quot;        CUSR0000SA0
+## 5  2019 M07    July       &lt;NA&gt;    256. &quot;&quot;        CUSR0000SA0
+## 6  2019 M06    June       &lt;NA&gt;    255. &quot;&quot;        CUSR0000SA0</code></pre>
+<p>As described in their website, the CPI is:</p>
+<p>The value column is essentially the average prices of good and services in all U.S. cities for that year/month.</p>
+</div>
+<div id="comparing-the-inflation-rates" class="section level1">
+<h1>Comparing the inflation rates</h1>
+<p>As indicated earlier, I’m interested in understanding the performance of <code>VTSAX</code> compared to the CPI. I’m really looking to see if the increase in the stock price beats the CPI (and hopefully by a lot).</p>
+<p>Below is a few lines of code to create a dataframe that calculates the difference in the price from January of each year from 2010 to 2019. The code also produces a plot to show the difference in the inflation rates over time.</p>
+<pre class="r"><code>plotdf &lt;- data.frame(yr = seq(2010,2018)) %&gt;%
+  pmap_dfr(function(yr){
+    # CPI 
+    base_cpi &lt;- subset(cpidf, year == yr &amp; periodName == &quot;January&quot;, select=&quot;value&quot;)[[1]]
+    new_cpi &lt;- subset(cpidf, year == (yr+1) &amp; periodName == &quot;January&quot;, select=&quot;value&quot;)[[1]]
+    
+    # Stock
+    old_val &lt;- head(VTSAX[paste0(yr,&quot;-01&quot;), &quot;VTSAX.Close&quot;],1)[[1]]
+    new_val &lt;- tail(VTSAX[paste0(yr+1,&quot;-01&quot;), &quot;VTSAX.Close&quot;],1)[[1]]
+    
+    data.frame(
+      StartYr = yr,
+      EndYr = yr+1,
+      CPI_inflation = ((new_cpi/base_cpi) - 1) * 100,
+      Stock_inflation = ((new_val/old_val) - 1) * 100
+    )
+  })
+
+plot(Stock_inflation ~ EndYr, plotdf, col=&quot;blue&quot;, type=&quot;l&quot;, xlab=&quot;Year&quot;, ylab = &quot;Inflation (%)&quot;)
+lines(CPI_inflation ~ EndYr, plotdf, col=&quot;red&quot;)
+legend(&quot;bottomleft&quot;, c(&quot;Stock-VTSAX&quot;, &quot;CPI&quot;), lty = c(1,1), col = c(&quot;blue&quot;,&quot;red&quot;))</code></pre>
+<p><img src="/post/2020-01-05-performance-of-my-stock-vs-cpi_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
+<p>Based on the plot above, I’m quite happy that my stocks are outperforming the CPI almost every year (except for 2016). This practically means that the money that I’m putting into the stock market (compared to storing it in the bank with an account providing &lt; 2 % APR ) is gaining more value even when inflation is continuing over time at a steady rate (inflation means the prices of products and services goes up).</p>
+</div>
+<div id="conclusion" class="section level1">
+<h1>Conclusion</h1>
+<p>Based on the short analysis above, the stock that I have is outperforming the CPI and the value of my assets are increasing more than the price of products and services sold in the U.S. We could do a more in-depth analysis of the performance of the stock but my philosophy towards trading is to invest based on long-term trends of the market and not to stress out about the minutia.</p>
+<p>Again, thanks for reading my blog and I hope you find this post useful!</p>
+</div>

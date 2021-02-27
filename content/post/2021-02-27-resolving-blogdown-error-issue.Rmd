@@ -1,0 +1,41 @@
+---
+title: Resolving blogdown error issue
+author: Chong Kim
+date: '2021-02-27'
+slug: []
+categories:
+  - hugo
+  - blodown
+tags:
+  - hugo
+  - blogdown
+  - error
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2021-02-27T09:01:12Z'
+featured: no
+image:
+  caption: ''
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+
+# Problem: Error when compiling Hugo using 'Academic' template
+
+It's been a while since I've updated my website and I sorta expected that there would be errors that would pop up while I post new R code. BUT... there was essentially an issue in the hugo compilation step. Specifically in the `Academic` template. This will be a really short post to help people that may have similar issues.
+
+# Solution: Change a few lines of code.
+
+Specifically, line 14 of the `theme/academic/layouts/publication/single.html` contains the below code:
+
+`{{ if (.Params.publication_types) and (ne (index .Params.publication_types 0) "0") }}`
+
+Essentially the code should be updated to the below code:
+
+`{{ if (and (.Params.publication_types) (ne (index .Params.publication_types 0) "0")) }}`
+
+This is due to a code update that occured (somewhere in version 0.7 to 0.8) where the top code leads to a logical error thereby leading to compilation error.
+
+Well... That's about it! I hope this will be helpful for people that made Hugo sites before version 0.8. Happy coding!

@@ -1,0 +1,351 @@
+---
+title: '{caret} custom function implementation'
+author: ck
+date: '2020-04-12'
+slug: caret-custom-function-implementation
+categories:
+  - R
+  - predictive modeling
+  - caret
+tags:
+  - analysis
+  - R
+  - predictive modeling
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2020-04-12T00:31:24Z'
+featured: no
+image:
+  caption: ''
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+
+# Problem: Optimal Probability Threshold
+
+It's been a while! I'm writing this post for a couple of reasons.
+
+  1. I don't want to only be writing my dissertation...
+  2. Someone found me on github and asked me to help them.
+  
+I am happy to be writing this post for the two reasons listed above so let's jump straight into the problem. 
+
+Recently, a random stranger e-mailed me about a problem they were having at work. It was regarding identification of the optimal probability threshold in classification problems. Essentially, when you fit a logistic regression model to your data, you're likely interested in obtaining the predicted probabilities (via `predict()`). The predicted probabilities then allows you to classify the observation if they exceed a certain probability threshold. Most of the time, people don't really think about this probability threshold. I for one believe the threshold is domain/context specific. So there isn't going to be a universal threshold that you can hammer onto all problems. So then, how do we find the most optimal probability threshold for the problem you're working on?
+
+# Solution: Specify it in your cross validation procedure and select the optimal threshold
+
+This has been handled in the [{caret} documentation]() already, so I won't go into all the technical details here. I'll walk through a scenario and hopefully it will help people go through it with ease with their own data.
+
+Let's start with the `data(Sonar)`. People may be familiar with the data set already but I'm just going to show a tidbit. If people are interested in learning more... `help(Sonar)`
+
+```{r}
+library("pacman")
+p_load(caret, mlbench, knitr)
+data("Sonar")
+```
+
+Let's split the data into training and test set.
+
+```{r}
+inTrain <- createDataPartition(Sonar$Class, p=0.75, list = FALSE)
+training <- Sonar[inTrain,]
+testing <- Sonar[-inTrain,]
+```
+
+OK. So from here we can use the default `train()` function to undergo a k-fold CV and extract the performance of a model being trained. Let's use a simple glm with elastic net and identify the optimal alpha, lambda. 
+
+```{r}
+tuneGrid <- expand.grid(alpha = 0:1, lambda = seq(0.0001, 1, length = 10))
+
+myControl <- trainControl(
+  method = "cv", number = 10
+)
+
+glmtrain <- train(
+  Class ~.,
+  training,
+  method="glmnet",
+  tuneGrid = tuneGrid, trControl = myControl
+)
+
+glmtrain
+```
+
+So... we see the alpha and lambda values are chosen. We can also extract the model to 
+
+```{r}
+pred <- predict(glmtrain, newdata = testing)
+confusionMatrix(testing$Class, pred)
+```
+
+
+So this would be a short prediction procedure to obtain the predictions for the test data. One thing that we didn't discuss above was how the `predict()` function extracted the classes? Basically, the generic `predict()` function that works on objects of class `train` will output the raw classess if `type=` argument isn't specified in the function.
+
+```{r}
+probs <- predict(glmtrain, newdata = testing, type = "prob")
+```
+
+Once we specify the `type="prob"`, we get the probabilities for both classes. From there, we could manually specify the predictions as such:
+
+```{r}
+preds2 <- factor(ifelse(probs$M >= 0.5, "M","R"), levels=c("M","R"))
+confusionMatrix(testing$Class, preds2)
+```
+
+So that's how things are done interally with the generic `predict()` function. Now let's get to how we would optimize the probability thresholds... we essentially want another column that displays the range of probability thresholds that we would wnat to display the performance values (in this case we've just used Accuracy but we can modify that).
+
+We need to get a bit more closer into the internals of `{caret}` to specify the probability threshold values. We first need to get information regarding the model being used in `train`. The function to use is `getModelInfo()`:
+
+```{r}
+thresh_code <- getModelInfo("glmnet", regex=FALSE)[[1]]
+str(thresh_code)
+```
+
+You see a bunch of things that will be useful. First we need to check that the type of task is `Classification`
+
+```{r}
+thresh_code$type
+```
+
+Next we need to check the parameters
+
+```{r}
+thresh_code$parameters
+```
+
+Since we want to optimize the probability threshold let's add that part in here
+
+```{r}
+thresh_code$parameters <- rbind(
+  thresh_code$parameters, 
+  data.frame(
+    parameter="threshold",
+    class="numeric",
+    label="Probability Cutoff"
+  )
+)
+thresh_code$parameters
+```
+
+Ok since that's done, now we need to make sure the tuning Grid iterates through the probability threshold values according to how we specify it in `train()`
+
+```{r}
+thresh_code$grid <- function(x, y, len=NULL, search="grid"){
+  if(search =="grid") {
+    numLev <- if(is.character(y) | is.factor(y)) length(levels(y)) else NA
+    if(!is.na(numLev)){
+      fam <- ifelse(numLev>2, "multinomial", "binomial")
+    } else fam <- "gaussian"
+    init <- glmnet::glmnet(Matrix::as.matrix(x),y,
+                           family=fam,
+                           nlambda=len+2,
+                           alpha=0.5)
+    lambda <- unique(init$lambda)
+    lambda <- lambda[-c(1, length(lambda))]
+    lambda <- lambda[1:min(length(lambda), len)]
+    out <- expand.grid(
+      alpha = seq(0.1, 1, length = len),
+      lambda = lambda,
+      threshold = seq(0.01,0.99, length=len)
+    )
+  } else {
+    out <- data.frame(alpha = runif(len, min=0, 1),
+               lambda = 2*runi(len, min = -10, 3),
+               threshold = runif(1,0,size=len)
+               )
+  }
+  out
+}
+```
+
+Essentially the tuning grid is set up in a way such that if we don't specify a tuning grid in the `train()` function then the function will generate a tuning grid specified as the bottom portion of the `thresh_code$grid` function.
+
+Now that we've specified the tuning grid, we now need to set up a code that will have each performance calculations be conducted within the folds by each threshold value: A loop.
+
+```{r}
+thresh_code$loop <- function(grid){
+  loop <- plyr::ddply(
+    grid, c("alpha","lambda"),
+    function(x) c(threshold = max(x$threshold))
+  )
+  submodels <- vector(mode="list", length = nrow(loop))
+  
+  for(i in seq(along = loop$threshold)) {
+    index <- which(
+      grid$alpha == loop$alpha[i] &
+        grid$lambda == loop$lambda[i] 
+    )
+    
+    cuts <- grid[index, "threshold"]
+    submodels[[i]] <- data.frame(threshold = cuts[cuts != loop$threshold[i]])
+  }
+  list(loop = loop, submodels = submodels)
+}
+```
+
+
+Ok that was convoluted... You can try to debug the code and check what objects you get as you run through each iteration but what's being done is, for each value of the threshold, we're setting up a grid of alpha & lambda values that we'll cross validate the performance on. Therefore submodels are being built for each threshold value. From those submodels we're extracting the alpha & lambda performances.
+
+Now let's move on to the prediction function. Here we want to set it to getting predicted probabilities not class:
+```{r}
+thresh_code$predict <- function(modelFit, newdata, submodels = NULL) {
+  if(!is.matrix(newdata)) newdata <- Matrix::as.matrix(newdata)
+  if(length(modelFit$obsLevels) < 2) {
+    class1Prob <- predict(modelFit, newdata, s = modelFit$lambdaOpt)
+  } else {
+    class1Prob <- predict(modelFit, newdata, s = modelFit$lambdaOpt, type = "response")
+  }
+  if(is.matrix(class1Prob)) class1Prob <- class1Prob[,1]
+  
+  if(modelFit$problemType == "Classification"){
+    if(length(modelFit$obsLevels) == 2){
+      out <- ifelse(class1Prob >= modelFit$tuneValue$threshold,
+                    modelFit$obsLevels[1],
+                    modelFit$obsLevels[2]
+                    )
+    } else {
+      out <- matrix(out, ncol=length(modelFit$obsLevels), byrow=TRUE)
+      out <- modelFit$obsLevels[apply(out, 1, which.max)]
+    }
+  }
+  
+  if(!is.null(submodels)) {
+    if(length(modelFit$obsLevels) < 2) {
+      tmp <- as.list(as.data.frame(predict(modelFit, newdata, s = submodels$lambda),
+                                   stringsAsFactors = TRUE))
+    } else {
+      tmp2 <- out
+      out <- vector(mode = "list", length=length(submodels$threshold))
+      out[[1]] <- tmp2
+      for(j in seq(along = submodels$threshold)) {
+        if(modelFit$problemType == "Classification"){
+          if(length(modelFit$obsLevels) == 2){
+            out[[j+1]]<- ifelse(class1Prob >= submodels$threshold[[j]],
+                               modelFit$obsLevels[1],
+                               modelFit$obsLevels[2]
+                               )
+          } else {
+            tmp_pred <- matrix(tmp_pred, ncol = length(modelFit$obsLevels), byrow=TRUE)
+            tmp_pred <- matrix(tmp_pred, ncol = length(modelFit$obsLevels), byrow=TRUE)
+          }
+        }
+      }
+    }
+  }
+  out
+}
+```
+
+That was a mess as well. But the gist is that we're trying to get predictions for each threshold value for each of the test folds. The list `out` is essentially capturing the predicted classess according to the threshold values.
+
+We're almost there now! The probabilities are always the same but we have to create mulitple versions of the probs to evaluate the data across thresholds
+
+```{r}
+thresh_code$prob <- function(modelFit, newdata, submodels = NULL) {
+  out <- as.data.frame(predict(modelFit, as.matrix(newdata), s=modelFit$lambdaOpt, type="response"))
+  out <- cbind(1-out, out)
+  colnames(out) <- modelFit$obsLevels
+  
+  if(!is.null(submodels)) {
+    tmp <- vector(mode = "list", length=length(submodels$threshold) + 1)
+    tmp[[1]] <- out
+    for(j in seq(along = submodels$threshold)) {
+      tmp_pred <- predict(modelFit, as.matrix(newdata), s=modelFit$lambdaOpt, type="response")
+      tmp_pred <- cbind(1-tmp_pred, tmp_pred)
+      colnames(tmp_pred) <- modelFit$obsLevels
+      tmp_pred <- as.data.frame(tmp_pred)
+      tmp[[j+1]] <- tmp_pred
+    }
+  }
+  tmp
+}
+```
+
+Alright we've basically specified everything except the final performance calculation ( which we could customize as well... later). Let's just keep our default performance calculation for now and see hwow we do.
+
+```{r}
+tuneGridnew <- expand.grid(
+  alpha = 0:1, 
+  lambda = seq(0.0001, 1, length = 5),
+  threshold = seq(0, 1, 0.2)
+  )
+
+myControl <- trainControl(
+  method = "cv", number = 5,
+  classProbs = TRUE
+)
+
+glmtrain2 <- train(
+  Class ~.,
+  training,
+  method=thresh_code,
+  tuneGrid = tuneGridnew, 
+  trControl = myControl
+)
+
+kable(head(glmtrain2$results))
+kable(glmtrain2$bestTune)
+```
+
+Now the CV is iterating throug h the probability threshold! 
+
+# Specification of Custom Performance Metrics
+
+I'm going to keep this section relatively short and make it as practical as possible. Basically this was dealt with in [stack](https://stackoverflow.com/questions/52691761/additional-metrics-in-caret-ppv-sensitivity-specificity?rq=1). If you want to specify all the nice performance metrics for a classification then use `summaryFunction = MySummary` otherwise use whatever suits your need. I'm also changing the `roc()` function here from the `{pROC}` version to the `{ModelMetrics}` version here. Note that in the `thresh_code$prob` portion above, we did a bit of manipulating to get the correct probabilities specified for the folds of the training data to be evaluated:
+
+```{r}
+twoClassSummarya <- function (data, lev = NULL, model = NULL) 
+{
+  if (length(lev) > 2) {
+    stop(paste("Your outcome has", length(lev), "levels. The twoClassSummary() function isn't appropriate."))
+  }
+  library("pROC")
+  if (!all(levels(data[, "pred"]) == lev)) {
+    stop("levels of observed and predicted data do not match")
+  }
+  
+  # print(table(data$obs))
+  
+  rocAUC <- ModelMetrics::auc(
+    as.numeric(as.character(ifelse(data$obs == lev[1], 1, 0))),
+    data[,lev[1]]
+  )
+  out <- c(rocAUC, sensitivity(data[, "pred"], data[, "obs"], 
+                               lev[1]), specificity(data[, "pred"], data[, "obs"], lev[2]))
+  names(out) <- c("ROC", "Sens", "Spec")
+  out
+}
+
+MySummary  <- function(data, lev = NULL, model = NULL){
+  a1 <- defaultSummary(data, lev, model)
+  b1 <- twoClassSummary(data, lev, model)
+  c1 <- prSummary(data, lev, model)
+  out <- c(a1, b1, c1)
+  out}
+```
+
+
+```{r}
+myControl <- trainControl(method = "cv", 
+                     number = 5,
+                     savePredictions = TRUE,
+                     summaryFunction = MySummary,
+                     classProbs = TRUE,
+                     allowParallel = FALSE
+                     )
+
+glmtrain3 <- train(
+  Class ~.,
+  training,
+  method=thresh_code,
+  tuneGrid = tuneGridnew, 
+  trControl = myControl
+)
+
+kable(head(glmtrain3$results))
+kable(glmtrain2$bestTune)
+```
+
+There you have it! I hope this helped :) This is by no means super easy to implement on the first try so I would suggest taking enough time to debug areas of the code that you don't understand via inserting `print()` statments to spit out the objects of interest along the way. Happy coding!
